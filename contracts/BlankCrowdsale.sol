@@ -83,7 +83,7 @@ contract BlankCrowdsale is Ownable {
             ++halfLifeCounter;
             tokensPerMint = tokensPerMint.div(HALFLIFE_DIVISOR);
         }
-        if (blankToken.balanceOf(address(this)) == 0) {
+        if (lastMintId > 1 && blankToken.balanceOf(address(this)) == 0) {
             price = price.mul(101).div(100);
         }
         emit Minted(lastMintId, tokensPerMint);
