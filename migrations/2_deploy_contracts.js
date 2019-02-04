@@ -1,10 +1,14 @@
+var Dollar = artifacts.require('Dollar.sol');
+
 var BlankToken = artifacts.require('BlankToken.sol');
 var BlankCrowdsale = artifacts.require('BlankCrowdsale.sol');
-var cap = 21*10**6
+var cap = 21*10**24
 
 
 module.exports = function (deployer) {
   deployer.then(async () => {
+
+    await deployer.deploy(Dollar);
 
     await deployer.deploy(BlankToken,cap);
     const instanceBlankToken = await BlankToken.deployed();
