@@ -96,19 +96,19 @@ contract BlankCrowdsale is Ownable {
     function buy()
         external
     {
-        uint256 allowance = stableToken.allowance(msg.sender, address(this));
         uint256 balance = blankToken.balanceOf(address(this));
         require(0 < balance, TOKENS_NOT_AVAILABLE);
 
-        uint256 requstedAmount = allowance.mul(BLANK_TOKEN_PARTS).div(price);
-        require(0 < requstedAmount, INSUFFICIENT_ALLOWANCE);
-
-        if (balance < requstedAmount) {
-            requstedAmount = balance;
+        uint256 allowance = stableToken.allowance(msg.sender, address(this));
+        uint256 blankAmount = allowance.mul(BLANK_TOKEN_PARTS).div(price);
+        require(0 < blankAmount, INSUFFICIENT_ALLOWANCE);
+        if (balance < blankAmount) {
+            blankAmount = balance;
         }
-        if (stableToken.transferFrom(msg.sender, daoFinanceAddr, requstedAmount.mul(price))) {
-            emit Buy(requstedAmount, price, msg.sender);
-            blankToken.transfer(msg.sender, requstedAmount);
+        uint256 stableAmount = blankAmount.mul(price).div(BLANK_TOKEN_PARTS);
+        if (stableToken.transferFrom(msg.sender, daoFinanceAddr, stableAmount)) {
+            emit Buy(blankAmount, stableAmount, msg.sender);
+            blankToken.transfer(msg.sender, blankAmount);
         }
     }
 }
