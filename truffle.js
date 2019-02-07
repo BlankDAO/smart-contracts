@@ -16,6 +16,14 @@ module.exports = {
       network_id: '*',
       gas: 6000000,
       gasPrice: 30000000000
+    },
+    rinkeby: {
+      provider: function() {
+        return new HDWalletProvider(mnemonic, "")
+      },
+      network_id: '*',
+      gas: 6000000,
+      gasPrice: 30000000000
     }
   }
 }
