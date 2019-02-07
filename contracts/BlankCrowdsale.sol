@@ -12,28 +12,23 @@ import "./BlankToken.sol";
 contract BlankCrowdsale is Ownable {
     using SafeMath for uint256;
 
-    uint256 public lastMintId;
-    uint256 public halfLifeCounter;
-
-    uint256 public genesisPoint;
-    uint256 public tokensPerMint;
-    uint256 public price; // 10**18 blank tokens are worth how many stable token
+    uint256 public price;
 
     BlankToken internal blankToken;
     ERC20 internal stableToken;
     address public daoFinanceAddr;
 
-    uint256 constant public MINTING_FREQUENCY = 600; // seconds
-    uint256 constant public HALFLIFE_DIVISOR = 2;
-    uint256 constant public HALFLIFE = 210000 * 600; // seconds
     uint256 constant public BLANK_TOKEN_PARTS = 10**18;
+    uint256 constant public MINIMUM_PRICE = 10**18;
+    uint256 constant public MINIMUM_PAYMENT = 10**18;
+    uint256 constant public MAXIMUM_PAYMENT = 10**22;
 
-    string private constant UNTIMELY_REQUEST = "UNTIMELY_REQUEST";
     string private constant INITIALIZED_BEFORE = "INITIALIZED_BEFORE";
-    string private constant INSUFFICIENT_ALLOWANCE = "INSUFFICIENT_ALLOWANCE";
+    string private constant INSUFFICIENT_PAYMENT = "INSUFFICIENT_PAYMENT";
+    string private constant EXCEEDED_PAYMENT = "EXCEEDED_PAYMENT";
     string private constant TOKENS_NOT_AVAILABLE = "TOKENS_NOT_AVAILABLE";
+    string private constant INVALID_AMOUNT = "INVALID_AMOUNT";
 
-    event Minted(uint256 indexed mintId, uint256 amount);
     event Buy(uint256 amount, uint256 price, address buyer);
 
     constructor(address blankTokenaddr, address stableTokenAddr)
@@ -41,9 +36,7 @@ contract BlankCrowdsale is Ownable {
     {
         blankToken = BlankToken(blankTokenaddr);
         stableToken = ERC20(stableTokenAddr);
-        tokensPerMint = 50 * 10**18;
-        genesisPoint = block.timestamp;
-        price = 10 * 10**16; // 10 cent
+        price = 10**18; // 1 dollar
     }
 
     /**
@@ -71,23 +64,15 @@ contract BlankCrowdsale is Ownable {
     }
 
     /**
-     * @notice mint BlankToken.
+     * @notice Set stableToken address.
+     * @param _price 10**18 blank tokens are worth how many stable token.
      */
-    function mint()
+    function setPrice(uint256 _price)
         external
+        onlyOwner
     {
-        require(lastMintId.mul(MINTING_FREQUENCY).add(genesisPoint) < block.timestamp, UNTIMELY_REQUEST);
-
-        ++lastMintId;
-        if (halfLifeCounter < block.timestamp.sub(genesisPoint).div(HALFLIFE)) {
-            ++halfLifeCounter;
-            tokensPerMint = tokensPerMint.div(HALFLIFE_DIVISOR);
-        }
-        if (lastMintId > 1 && blankToken.balanceOf(address(this)) == 0) {
-            price = price.mul(101).div(100);
-        }
-        emit Minted(lastMintId, tokensPerMint);
-        blankToken.mint(address(this), tokensPerMint);
+    	require(MINIMUM_PRICE < _price, INVALID_AMOUNT);
+        price = _price;
     }
 
     /**
@@ -100,15 +85,16 @@ contract BlankCrowdsale is Ownable {
         require(0 < balance, TOKENS_NOT_AVAILABLE);
 
         uint256 allowance = stableToken.allowance(msg.sender, address(this));
+        require(allowance <= MAXIMUM_PAYMENT, EXCEEDED_PAYMENT);
+        require(MINIMUM_PAYMENT <= allowance, INSUFFICIENT_PAYMENT);
+
         uint256 blankAmount = allowance.mul(BLANK_TOKEN_PARTS).div(price);
-        require(0 < blankAmount, INSUFFICIENT_ALLOWANCE);
         if (balance < blankAmount) {
             blankAmount = balance;
         }
-        uint256 stableAmount = blankAmount.mul(price).div(BLANK_TOKEN_PARTS);
-        if (stableToken.transferFrom(msg.sender, daoFinanceAddr, stableAmount)) {
-            emit Buy(blankAmount, stableAmount, msg.sender);
-            blankToken.transfer(msg.sender, blankAmount);
+        if (stableToken.transferFrom(msg.sender, daoFinanceAddr, allowance)) {
+            emit Buy(blankAmount, allowance, msg.sender);
+            require(blankToken.transfer(msg.sender, blankAmount));
         }
     }
 }
