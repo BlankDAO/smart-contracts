@@ -4,6 +4,7 @@ import "./openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "./openzeppelin/contracts/math/SafeMath.sol";
 import "./openzeppelin/contracts/ownership/Ownable.sol";
 import "./BlankToken.sol";
+import "./Finance.sol";
 
 
 /**
@@ -16,14 +17,13 @@ contract BlankCrowdsale is Ownable {
 
     BlankToken internal blankToken;
     ERC20 internal stableToken;
-    address public daoFinanceAddr;
+    Finance internal finance;
 
     uint256 constant public BLANK_TOKEN_PARTS = 10**18;
     uint256 constant public MINIMUM_PRICE = 10**18;
     uint256 constant public MINIMUM_PAYMENT = 10**18;
     uint256 constant public MAXIMUM_PAYMENT = 10**22;
 
-    string private constant INITIALIZED_BEFORE = "INITIALIZED_BEFORE";
     string private constant INSUFFICIENT_PAYMENT = "INSUFFICIENT_PAYMENT";
     string private constant EXCEEDED_PAYMENT = "EXCEEDED_PAYMENT";
     string private constant TOKENS_NOT_AVAILABLE = "TOKENS_NOT_AVAILABLE";
@@ -40,16 +40,14 @@ contract BlankCrowdsale is Ownable {
     }
 
     /**
-     * @notice Set DAO finance's address.
-     * @param _daoFinanceAddr The DAO finance's address.
+     * @notice Set DAO finance.
+     * @param daoFinance The DAO finance's address.
      */
-    function setDaoFinance(address _daoFinanceAddr)
+    function setDaoFinance(address daoFinance)
         external
         onlyOwner
     {
-        require(daoFinanceAddr == address(0), INITIALIZED_BEFORE);
-
-        daoFinanceAddr = _daoFinanceAddr;
+        finance = Finance(daoFinance);
     }
 
     /**
@@ -92,7 +90,9 @@ contract BlankCrowdsale is Ownable {
         if (balance < blankAmount) {
             blankAmount = balance;
         }
-        if (stableToken.transferFrom(msg.sender, daoFinanceAddr, allowance)) {
+        if (stableToken.transferFrom(msg.sender, address(this), allowance)) {
+            require(stableToken.approve(address(finance), allowance));
+            finance.deposit(address(stableToken), allowance, "Crowdsale Revenue");
             emit Buy(blankAmount, allowance, msg.sender);
             require(blankToken.transfer(msg.sender, blankAmount));
         }
