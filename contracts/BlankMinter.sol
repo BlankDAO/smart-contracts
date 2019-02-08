@@ -3,12 +3,13 @@ pragma solidity ^0.4.24;
 import "./openzeppelin/contracts/math/SafeMath.sol";
 import "./openzeppelin/contracts/ownership/Ownable.sol";
 import "./BlankToken.sol";
+import "./Finance.sol";
 
 
 /**
  * @title Minter contract.
  */
-contract Minter is Ownable {
+contract BlankMinter is Ownable {
     using SafeMath for uint256;
 
     uint256 public lastMintId;
@@ -17,7 +18,7 @@ contract Minter is Ownable {
     uint256 public tokensPerMint;
 
     BlankToken internal blankToken;
-    address public daoFinance;
+    Finance internal finance;
 
     uint256 constant public MINTING_FREQUENCY = 600; // seconds
     uint256 constant public HALFLIFE_DIVISOR = 2;
@@ -27,14 +28,20 @@ contract Minter is Ownable {
 
     event Minted(uint256 indexed mintId, uint256 amount);
 
-    constructor(address blankTokenaddr)
+    constructor(address blankTokenAddr)
         public
     {
-        blankToken = BlankToken(blankTokenaddr);
+        blankToken = BlankToken(blankTokenAddr);
         tokensPerMint = 50 * 10**18;
         genesisPoint = block.timestamp;
     }
 
+    /**
+     * @notice Sends ETH to Finance to avoid locking them in this app forever
+     */
+    function () external payable {
+    	address(finance).transfer(msg.value);
+    }
 
     /**
      * @notice mint Blank token.
@@ -50,18 +57,19 @@ contract Minter is Ownable {
             tokensPerMint = tokensPerMint.div(HALFLIFE_DIVISOR);
         }
         emit Minted(lastMintId, tokensPerMint);
-        require(blankToken.mint(daoFinance, tokensPerMint));
+        require(blankToken.mint(address(this), tokensPerMint));
+        require(blankToken.approve(address(finance), tokensPerMint));
+        finance.deposit(address(blankToken), tokensPerMint, "Minted BlankDAO tokens");
     }
-
 
 	/**
      * @notice Set DAO finance address.
-     * @param _daoFinance The DAO finance's address.
+     * @param daoFinance The DAO finance's address.
      */
-    function setDaoFinance(address _daoFinance)
+    function setDaoFinance(address daoFinance)
         external
         onlyOwner
     {
-        daoFinance = _daoFinance;
+        finance = Finance(daoFinance);
     }
 }
