@@ -12,6 +12,6 @@ contract BlankToken is CappedToken {
     string public constant symbol = "BDT";
     uint32 public constant decimals = 18;
 
-   function BlankToken(uint256 _cap) public CappedToken (_cap){
+   constructor(uint256 _cap) public CappedToken (_cap){
    }
 }
