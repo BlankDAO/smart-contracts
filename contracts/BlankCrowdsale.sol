@@ -89,6 +89,7 @@ contract BlankCrowdsale is Ownable {
         uint256 blankAmount = allowance.mul(BLANK_TOKEN_PARTS).div(price);
         if (balance < blankAmount) {
             blankAmount = balance;
+	        allowance = balance.mul(price).div(BLANK_TOKEN_PARTS);
         }
         if (stableToken.transferFrom(msg.sender, address(this), allowance)) {
             require(stableToken.approve(address(finance), allowance));
