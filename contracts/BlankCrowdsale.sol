@@ -28,36 +28,55 @@ contract BlankCrowdsale is Ownable {
     string private constant EXCEEDED_PAYMENT = "EXCEEDED_PAYMENT";
     string private constant TOKENS_NOT_AVAILABLE = "TOKENS_NOT_AVAILABLE";
     string private constant INVALID_AMOUNT = "INVALID_AMOUNT";
+    string private constant REFERRER_NA = "REFERRER_N/A";
 
-    event Buy(uint256 amount, uint256 price, address buyer);
+    event Buy(uint256 amount, uint256 price, address buyer, address referrer);
+    event AddReferrer(address referrer);
+    event RemoveReferrer(address referrer);
 
-    constructor(address blankTokenaddr, address stableTokenAddr)
+    mapping(address => bool) public referrers;
+
+    constructor(address blankTokenaddr, address stableTokenAddr, address financeAddr)
         public
     {
         blankToken = BlankToken(blankTokenaddr);
         stableToken = ERC20(stableTokenAddr);
+        finance = Finance(financeAddr);
         price = 10**18; // 1 dollar
     }
 
     /**
-     * @notice Set DAO finance.
-     * @param daoFinance The DAO finance's address.
+     * @notice Add a referrer.
+     * @param referrer The referrer's address.
      */
-    function setDaoFinance(address daoFinance)
-        external
-        onlyOwner
-    {
-        finance = Finance(daoFinance);
+    function addReferrer(address referrer) external onlyOwner {
+        referrers[referrer] = true;
+        emit AddReferrer(referrer);
+    }
+
+    /**
+     * @notice Remove the referrer.
+     * @param referrer The referrer's address.
+     */
+    function removeReferrer(address referrer) external onlyOwner {
+        require(referrers[referrer], REFERRER_NA);
+        referrers[referrer] = false;
+        emit RemoveReferrer(referrer);
+    }
+
+    /**
+     * @notice Set DAO finance.
+     * @param financeAddr The DAO finance's address.
+     */
+    function setFinance(address financeAddr) external onlyOwner {
+        finance = Finance(financeAddr);
     }
 
     /**
      * @notice Set stableToken address.
      * @param stableTokenAddr Satable token's smart contract address.
      */
-    function setStableToken(address stableTokenAddr)
-        external
-        onlyOwner
-    {
+    function setStableToken(address stableTokenAddr) external onlyOwner {
         stableToken = ERC20(stableTokenAddr);
     }
 
@@ -65,20 +84,17 @@ contract BlankCrowdsale is Ownable {
      * @notice Set stableToken address.
      * @param _price 10**18 blank tokens are worth how many stable token.
      */
-    function setPrice(uint256 _price)
-        external
-        onlyOwner
-    {
-    	require(MINIMUM_PRICE < _price, INVALID_AMOUNT);
+    function setPrice(uint256 _price) external onlyOwner {
+        require(MINIMUM_PRICE <= _price, INVALID_AMOUNT);
         price = _price;
     }
 
     /**
      * @notice Buy blank token.
      */
-    function buy()
-        external
-    {
+    function buy(address referrer) external {
+        require(referrers[referrer], REFERRER_NA);
+
         uint256 balance = blankToken.balanceOf(address(this));
         require(0 < balance, TOKENS_NOT_AVAILABLE);
 
@@ -89,12 +105,12 @@ contract BlankCrowdsale is Ownable {
         uint256 blankAmount = allowance.mul(BLANK_TOKEN_PARTS).div(price);
         if (balance < blankAmount) {
             blankAmount = balance;
-	        allowance = balance.mul(price).div(BLANK_TOKEN_PARTS);
+            allowance = balance.mul(price).div(BLANK_TOKEN_PARTS);
         }
         if (stableToken.transferFrom(msg.sender, address(this), allowance)) {
             require(stableToken.approve(address(finance), allowance));
             finance.deposit(address(stableToken), allowance, "Crowdsale Revenue");
-            emit Buy(blankAmount, allowance, msg.sender);
+            emit Buy(blankAmount, allowance, msg.sender, referrer);
             require(blankToken.transfer(msg.sender, blankAmount));
         }
     }
