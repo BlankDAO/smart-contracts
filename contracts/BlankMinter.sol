@@ -12,64 +12,63 @@ import "./Finance.sol";
 contract BlankMinter is Ownable {
     using SafeMath for uint256;
 
-    uint256 public lastMintId;
-    uint256 public halfLifeCounter;
     uint256 public genesisPoint;
-    uint256 public tokensPerMint;
 
     BlankToken internal blankToken;
     Finance internal finance;
 
     uint256 constant public MINTING_FREQUENCY = 600; // seconds
-    uint256 constant public HALFLIFE_DIVISOR = 2;
-    uint256 constant public HALFLIFE = 210000 * 600; // seconds
+    uint256 constant public TOKENS_PER_MINT = 50 * 10**18;
 
     string private constant UNTIMELY_REQUEST = "UNTIMELY_REQUEST";
 
-    event Minted(uint256 indexed mintId, uint256 amount);
+    event Minted(uint256 mintId, uint256 amount);
 
-    constructor(address blankTokenAddr)
-        public
-    {
+    constructor(address blankTokenAddr, address financeAddr) public {
         blankToken = BlankToken(blankTokenAddr);
-        tokensPerMint = 50 * 10**18;
+        finance = Finance(financeAddr);
         genesisPoint = block.timestamp;
     }
 
     /**
-     * @notice Sends ETH to Finance to avoid locking them in this app forever
+     * @dev Allows the current owner to relinquish control of the token.
+     * @notice Renouncing to ownership will leave the contract without an owner.
+     * It will not be possible to call the functions with the `onlyOwner`
+     * modifier anymore.
      */
-    function () external payable {
-    	address(finance).transfer(msg.value);
+    function renounceTokenOwnership() external onlyOwner {
+        blankToken.renounceOwnership();
+    }
+
+    /**
+     * @dev Allows the current owner to transfer control of the contract to a newOwner.
+     * @param newOwner The address to transfer ownership to.
+     */
+    function transferTokenOwnership(address newOwner) external onlyOwner {
+        blankToken.transferOwnership(newOwner);
     }
 
     /**
      * @notice mint Blank token.
      */
-    function mint()
-        external
-    {
-        require(lastMintId.mul(MINTING_FREQUENCY).add(genesisPoint) < block.timestamp, UNTIMELY_REQUEST);
+    function mint() external {
+        uint256 mintId = block.timestamp.sub(genesisPoint).div(MINTING_FREQUENCY);
+        uint256 intendedSupply = mintId.mul(TOKENS_PER_MINT);
+        uint256 actualSupply = blankToken.totalSupply();
+        require(actualSupply < intendedSupply, UNTIMELY_REQUEST);
 
-        ++lastMintId;
-        if (halfLifeCounter < block.timestamp.sub(genesisPoint).div(HALFLIFE)) {
-            ++halfLifeCounter;
-            tokensPerMint = tokensPerMint.div(HALFLIFE_DIVISOR);
-        }
-        emit Minted(lastMintId, tokensPerMint);
-        require(blankToken.mint(address(this), tokensPerMint));
-        require(blankToken.approve(address(finance), tokensPerMint));
-        finance.deposit(address(blankToken), tokensPerMint, "Minted BlankDAO tokens");
+        emit Minted(mintId, TOKENS_PER_MINT);
+        uint256 mintAmount = intendedSupply.sub(actualSupply);
+        require(blankToken.mint(address(this), mintAmount));
+        require(blankToken.approve(address(finance), mintAmount));
+        finance.deposit(address(blankToken), mintAmount, "Minted BlankDAO tokens");
     }
 
 	/**
      * @notice Set DAO finance address.
-     * @param daoFinance The DAO finance's address.
+     * @param financeAddr The DAO finance's address.
      */
-    function setDaoFinance(address daoFinance)
-        external
-        onlyOwner
-    {
-        finance = Finance(daoFinance);
+    function setFinance(address financeAddr) external onlyOwner {
+        finance = Finance(financeAddr);
     }
 }
