@@ -24,6 +24,14 @@ module.exports = {
       network_id: '*',
       gas: 6000000,
       gasPrice: 30000000000
+    },
+    mainnet: {
+      provider: function() {
+        return new HDWalletProvider(mnemonic, "")
+      },
+      network_id: '*',
+      gas: 3000000,
+      gasPrice: 10000000000
     }
   }
 }
